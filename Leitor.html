@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Leitor - Fada Malu</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Montserrat&display=swap" rel="stylesheet">
+
+<style>
+body{
+    margin:0;
+    background:#121212;
+    color:white;
+    font-family:'Montserrat',sans-serif;
+}
+
+/* HEADER */
+.header{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    background:#1a1a1a;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px;
+    z-index:10;
+    border-bottom:1px solid #222;
+}
+
+.logo{
+    color:#a64dff;
+    font-weight:bold;
+}
+
+.breadcrumb{
+    font-size:12px;
+    color:#aaa;
+}
+
+/* CONTROLES */
+.top-controls{
+    margin-top:60px;
+    padding:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#1c1c1c;
+}
+
+select{
+    background:#121212;
+    color:white;
+    border:1px solid #333;
+    padding:6px;
+    border-radius:6px;
+}
+
+/* LEITOR */
+.reader{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+.reader img{
+    width:100%;
+    max-width:800px;
+    display:block;
+}
+
+/* PROGRESSO */
+.progress{
+    text-align:center;
+    font-size:12px;
+    color:#aaa;
+    margin:10px 0;
+}
+
+/* NAV */
+.nav{
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    background:#1a1a1a;
+    display:flex;
+    justify-content:space-between;
+    padding:10px;
+    border-top:1px solid #222;
+}
+
+.nav button{
+    background:#121212;
+    color:white;
+    border:1px solid #333;
+    padding:10px;
+    border-radius:8px;
+}
+
+/* BOTÕES MODO */
+.mode-buttons button{
+    background:#121212;
+    color:white;
+    border:1px solid #333;
+    padding:5px 8px;
+    border-radius:6px;
+    font-size:12px;
+}
+
+/* COMMENTS */
+.comments{
+    max-width:800px;
+    margin:40px auto 120px;
+    padding:10px;
+}
+
+textarea{
+    width:100%;
+    height:80px;
+    background:#1c1c1c;
+    border:none;
+    color:white;
+    padding:10px;
+    border-radius:10px;
+    outline:none;
+}
+
+.comment{
+    background:#1c1c1c;
+    padding:10px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+.comment-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.avatar{
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    background:#333;
+}
+
+.name{
+    color:#a64dff;
+    font-weight:bold;
+    font-size:13px;
+}
+
+.actions{
+    font-size:12px;
+    color:#aaa;
+    display:flex;
+    gap:10px;
+    margin-top:5px;
+}
+
+.actions span{
+    cursor:pointer;
+}
+
+/* SPOILER */
+.spoiler{
+    filter:blur(6px);
+    cursor:pointer;
+}
+
+/* SCAN TEAM */
+.scan{
+    border-left:3px solid #a64dff;
+}
+</style>
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div class="logo">Fada Malu</div>
+    <div class="breadcrumb">Home > Obra > Capítulo</div>
+</div>
+
+<!-- CONTROLES -->
+<div class="top-controls">
+    <select id="capitulos" onchange="trocarCapitulo()"></select>
+
+    <div class="mode-buttons">
+        <button onclick="modo('vertical')">Vertical</button>
+        <button onclick="modo('horizontal')">Página</button>
+    </div>
+</div>
+
+<!-- PROGRESSO -->
+<div class="progress" id="progress">0%</div>
+
+<!-- LEITOR -->
+<div class="reader" id="reader"></div>
+
+<!-- NAV -->
+<div class="nav">
+    <button onclick="anterior()">← Anterior</button>
+    <button onclick="favoritar()">★ Favorito</button>
+    <button onclick="proximo()">Próximo →</button>
+</div>
+
+<!-- COMMENTS -->
+<div class="comments">
+
+<h3 id="totalComentarios">💬 Comentários (0)</h3>
+
+<textarea id="inputComment" placeholder="Escreva um comentário..."></textarea>
+
+<label><input type="checkbox" id="spoiler"> Spoiler</label>
+
+<button onclick="sendComment()">Enviar</button>
+
+<div id="listaComentarios"></div>
+
+<button onclick="loadMore()">Carregar mais</button>
+
+</div>
+
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+firebase.initializeApp({
+  apiKey:"SUA_KEY",
+  authDomain:"fada-malu.firebaseapp.com",
+  projectId:"fada-malu"
+});
+
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+/* PARAMS */
+let p = new URLSearchParams(location.search);
+let obraId = p.get("obra");
+let cap = parseInt(p.get("cap"));
+
+let reader = document.getElementById("reader");
+
+/* IMAGENS */
+function loadImages(){
+reader.innerHTML="";
+for(let i=1;i<=6;i++){
+let img=document.createElement("img");
+img.src=`img/${obraId}/${cap}/${i}.jpg`;
+img.loading="lazy";
+reader.appendChild(img);
+}
+}
+loadImages();
+
+/* PROGRESSO */
+window.addEventListener("scroll",()=>{
+let total=document.body.scrollHeight-window.innerHeight;
+let perc=(window.scrollY/total)*100;
+document.getElementById("progress").innerText=Math.floor(perc)+"%";
+});
+
+/* CAP */
+function proximo(){location=`leitor.html?obra=${obraId}&cap=${cap+1}`;}
+function anterior(){if(cap>1)location=`leitor.html?obra=${obraId}&cap=${cap-1}`;}
+function trocarCapitulo(){location=`leitor.html?obra=${obraId}&cap=${document.getElementById("capitulos").value}`;}
+
+/* FAVORITO */
+function favoritar(){
+let fav=JSON.parse(localStorage.getItem("fav"))||[];
+if(!fav.includes(obraId))fav.push(obraId);
+else fav=fav.filter(f=>f!=obraId);
+localStorage.setItem("fav",JSON.stringify(fav));
+alert("Salvo");
+}
+
+/* CAP LIST */
+let sel=document.getElementById("capitulos");
+for(let i=1;i<=20;i++){
+let opt=document.createElement("option");
+opt.value=i;
+opt.innerText="Cap "+i;
+if(i==cap)opt.selected=true;
+sel.appendChild(opt);
+}
+
+/* COMMENTS */
+let last=null;
+
+async function sendComment(){
+
+let user=auth.currentUser;
+if(!user)return alert("login necessário");
+
+await db.collection("comentarios").add({
+obraId,
+capitulo:cap,
+uid:user.uid,
+nome:user.displayName,
+texto:inputComment.value,
+likes:0,
+reports:0,
+spoiler:document.getElementById("spoiler").checked,
+data:Date.now()
+});
+
+inputComment.value="";
+loadComments(true);
+}
+
+async function loadComments(reset=false){
+
+let list=document.getElementById("listaComentarios");
+if(reset){list.innerHTML="";last=null;}
+
+let q=db.collection("comentarios")
+.where("obraId","==",obraId)
+.where("capitulo","==",cap)
+.orderBy("data","desc")
+.limit(5);
+
+if(last)q=q.startAfter(last);
+
+let snap=await q.get();
+
+let total=await db.collection("comentarios")
+.where("obraId","==",obraId)
+.where("capitulo","==",cap).get();
+
+document.getElementById("totalComentarios").innerText=`💬 Comentários (${total.size})`;
+
+snap.forEach(doc=>{
+let c=doc.data();
+last=doc;
+
+if(c.reports>3)return;
+
+let div=document.createElement("div");
+div.className="comment";
+
+div.innerHTML=`
+<div class="comment-header">
+<div class="avatar"></div>
+<div class="name">${c.nome}</div>
+</div>
+
+<div class="${c.spoiler?'spoiler':''}" onclick="this.classList.remove('spoiler')">
+${c.texto}
+</div>
+
+<div class="actions">
+<span onclick="like('${doc.id}')">❤️ ${c.likes}</span>
+<span onclick="report('${doc.id}')">⚠</span>
+</div>
+`;
+
+list.appendChild(div);
+});
+}
+
+async function like(id){
+await db.collection("comentarios").doc(id).update({
+likes:firebase.firestore.FieldValue.increment(1)
+});
+loadComments(true);
+}
+
+async function report(id){
+await db.collection("comentarios").doc(id).update({
+reports:firebase.firestore.FieldValue.increment(1)
+});
+alert("denunciado");
+}
+
+function loadMore(){loadComments(false);}
+
+auth.onAuthStateChanged(()=>loadComments(true));
+loadComments(true);
+</script>
+
+</body>
+</html>
