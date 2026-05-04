@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Admin - Fada Malu</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Montserrat&display=swap" rel="stylesheet">
+
+<style>
+body{
+    margin:0;
+    background:#121212;
+    color:white;
+    font-family:'Montserrat',sans-serif;
+}
+
+.header{
+    background:#1a1a1a;
+    padding:12px;
+    display:flex;
+    justify-content:space-between;
+    border-bottom:1px solid #222;
+}
+
+.logo{
+    color:#a64dff;
+    font-weight:bold;
+}
+
+.container{
+    max-width:900px;
+    margin:auto;
+    padding:15px;
+}
+
+.box{
+    background:#1c1c1c;
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:15px;
+}
+
+input, textarea{
+    width:100%;
+    padding:10px;
+    margin-top:8px;
+    margin-bottom:10px;
+    background:#121212;
+    border:1px solid #333;
+    color:white;
+    border-radius:8px;
+}
+
+button{
+    background:#a64dff;
+    border:none;
+    padding:10px;
+    color:white;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+button:hover{
+    opacity:0.8;
+}
+
+.hidden{
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+    <div class="logo">Admin Fada Malu</div>
+    <div id="user"></div>
+</div>
+
+<div class="container">
+
+<!-- LOGIN -->
+<div class="box" id="loginBox">
+    <h3>🔐 Login Admin</h3>
+    <button onclick="login()">Entrar com Google</button>
+</div>
+
+<!-- PAINEL -->
+<div id="painel" class="hidden">
+
+    <div class="box">
+        <h3>📚 Criar Obra</h3>
+        <input id="nomeObra" placeholder="Nome da obra">
+        <textarea id="descObra" placeholder="Descrição"></textarea>
+        <input id="capaObra" placeholder="URL da capa">
+        <button onclick="criarObra()">Criar Obra</button>
+    </div>
+
+    <div class="box">
+        <h3>📖 Adicionar Capítulo</h3>
+        <input id="obraId" placeholder="ID da obra">
+        <input id="capNumero" placeholder="Número do capítulo">
+        <textarea id="imgs" placeholder="URLs das imagens (uma por linha)"></textarea>
+        <button onclick="addCapitulo()">Adicionar Capítulo</button>
+    </div>
+
+    <div class="box">
+        <h3>📦 Obras</h3>
+        <div id="lista"></div>
+    </div>
+
+</div>
+
+</div>
+
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyC0mbEL1iIf_o_AgLuGjRDdmUrnHeHLv2U",
+  authDomain: "fada-malu.firebaseapp.com",
+  projectId: "fada-malu",
+  storageBucket: "fada-malu.firebasestorage.app",
+  messagingSenderId: "734840017660",
+  appId: "1:734840017660:web:31dd6dbe5476e5240bfd79",
+  measurementId: "G-6BEZN8EBG9"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+/* 🔐 SEU EMAIL AQUI */
+const ADMINS = [
+    "juliana890brandao@gmail.com"
+];
+
+/* LOGIN MAIS ESTÁVEL (SEM BUG POPUP) */
+function login(){
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithRedirect(provider);
+}
+
+/* RESULTADO DO LOGIN */
+auth.getRedirectResult().then(result=>{
+    if(result.user){
+        console.log("Login OK:", result.user.email);
+    }
+});
+
+/* AUTENTICAÇÃO */
+auth.onAuthStateChanged(user=>{
+    if(!user){
+        console.log("Sem login");
+        return;
+    }
+
+    console.log("Usuário logado:", user.email);
+
+    if(!ADMINS.includes(user.email)){
+        alert("❌ Acesso negado (não é admin)");
+        auth.signOut();
+        return;
+    }
+
+    document.getElementById("user").innerText = user.email;
+
+    document.getElementById("loginBox").classList.add("hidden");
+    document.getElementById("painel").classList.remove("hidden");
+
+    loadObras();
+});
+
+/* CRIAR OBRA */
+async function criarObra(){
+await db.collection("obras").add({
+    nome: nomeObra.value,
+    desc: descObra.value,
+    capa: capaObra.value,
+    created: Date.now()
+});
+
+alert("Obra criada!");
+
+nomeObra.value="";
+descObra.value="";
+capaObra.value="";
+
+loadObras();
+}
+
+/* CAPÍTULO */
+async function addCapitulo(){
+
+let imagens = imgs.value.split("\n").filter(i=>i.trim()!="");
+
+await db.collection("capitulos").add({
+    obraId: obraId.value,
+    capitulo: capNumero.value,
+    imagens: imagens,
+    created: Date.now()
+});
+
+alert("Capítulo criado!");
+
+capNumero.value="";
+imgs.value="";
+}
+
+/* LISTAR OBRAS */
+async function loadObras(){
+
+let list = document.getElementById("lista");
+list.innerHTML="";
+
+let snap = await db.collection("obras").get();
+
+snap.forEach(doc=>{
+let o = doc.data();
+
+let div = document.createElement("div");
+
+div.innerHTML = `
+<b>${o.nome}</b><br>
+<small>${o.desc || ""}</small><br><br>
+<button onclick="copyId('${doc.id}')">Copiar ID</button>
+<hr>
+`;
+
+list.appendChild(div);
+});
+}
+
+/* COPIAR ID */
+function copyId(id){
+navigator.clipboard.writeText(id);
+alert("ID copiado!");
+}
+</script>
+
+</body>
+</html>
